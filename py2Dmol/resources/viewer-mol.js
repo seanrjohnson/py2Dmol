@@ -6159,6 +6159,67 @@ function initializePy2DmolViewer(containerElement, viewerId) {
             return coords;
         }
 
+        // Public API: pick the nearest visible position under the mouse.
+        // Screen coordinates are in display pixels relative to the canvas top-left.
+        // Returns a position index (0-based) or null.
+        pickPositionAtScreen(x, y, options = {}) {
+            if (!this.screenValid || !this.screenX || !this.screenY || !this.screenRadius) {
+                return null;
+            }
+
+            // Ignore obviously invalid inputs
+            if (!Number.isFinite(x) || !Number.isFinite(y)) {
+                return null;
+            }
+
+            const currentId = this.screenFrameId;
+            const maxDistance = Number.isFinite(options.maxDistance) ? options.maxDistance : 12;
+
+            let bestIdx = null;
+            let bestScore = Infinity;
+            let bestZ = -Infinity;
+
+            const n = this.screenValid.length;
+            for (let idx = 0; idx < n; idx++) {
+                if (this.screenValid[idx] !== currentId) continue;
+
+                const r = this.screenRadius[idx] || 0;
+                const threshold = Math.max(r, maxDistance);
+
+                const dx = this.screenX[idx] - x;
+                if (dx > threshold || dx < -threshold) continue;
+                const dy = this.screenY[idx] - y;
+                if (dy > threshold || dy < -threshold) continue;
+
+                const d2 = dx * dx + dy * dy;
+                if (d2 > threshold * threshold) continue;
+
+                // Prefer closer to the center of the glyph; normalize by radius to make widths comparable.
+                const denom = Math.max(1, r * r);
+                const score = d2 / denom;
+
+                if (score < bestScore) {
+                    bestScore = score;
+                    bestIdx = idx;
+                    // Best-effort tie-breaker: prefer nearer (larger z after rotation) if available
+                    const z = (this.rotatedCoords && this.rotatedCoords[idx] && typeof this.rotatedCoords[idx].z === 'number')
+                        ? this.rotatedCoords[idx].z
+                        : -Infinity;
+                    bestZ = z;
+                } else if (score === bestScore) {
+                    const z = (this.rotatedCoords && this.rotatedCoords[idx] && typeof this.rotatedCoords[idx].z === 'number')
+                        ? this.rotatedCoords[idx].z
+                        : -Infinity;
+                    if (z > bestZ) {
+                        bestIdx = idx;
+                        bestZ = z;
+                    }
+                }
+            }
+
+            return bestIdx;
+        }
+
         // Ensure the animation loop is running (without creating duplicates)
         ensureAnimationLoop() {
             if (this.animationFrameId !== null) return;

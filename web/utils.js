@@ -2803,15 +2803,15 @@ function buildBioFromCIF(text) {
 /**
  * Residue name to single-letter amino acid code mapping
  */
-const RESIDUE_TO_AA = {
-    ALA: 'A', ARG: 'R', ASN: 'N', ASP: 'D', CYS: 'C', GLU: 'E', GLN: 'Q', GLY: 'G',
-    HIS: 'H', ILE: 'I', LEU: 'L', LYS: 'K', MET: 'M', PHE: 'F', PRO: 'P', SER: 'S',
-    THR: 'T', TRP: 'W', TYR: 'Y', VAL: 'V', SEC: 'U', PYL: 'O',
-    // common modified residues → canonical letters
-    MSE: 'M', HSD: 'H', HSE: 'H', HID: 'H', HIE: 'H', HIP: 'H'
-};
-
-// Expose globally
+// IMPORTANT: do not declare a top-level `RESIDUE_TO_AA` identifier.
+// Some builds/entrypoints already define that identifier, and re-declaring it
+// causes a SyntaxError in browsers. Use `window.RESIDUE_TO_AA` as the shared API.
 if (typeof window !== 'undefined') {
-    window.RESIDUE_TO_AA = RESIDUE_TO_AA;
+    window.RESIDUE_TO_AA = window.RESIDUE_TO_AA || {
+        ALA: 'A', ARG: 'R', ASN: 'N', ASP: 'D', CYS: 'C', GLU: 'E', GLN: 'Q', GLY: 'G',
+        HIS: 'H', ILE: 'I', LEU: 'L', LYS: 'K', MET: 'M', PHE: 'F', PRO: 'P', SER: 'S',
+        THR: 'T', TRP: 'W', TYR: 'Y', VAL: 'V', SEC: 'U', PYL: 'O',
+        // common modified residues → canonical letters
+        MSE: 'M', HSD: 'H', HSE: 'H', HID: 'H', HIE: 'H', HIP: 'H'
+    };
 }

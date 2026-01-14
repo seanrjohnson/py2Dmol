@@ -27,6 +27,11 @@
     let highlightOverlayCtx = null;
     let hoveredResidueInfo = null; // { chain, resName, resSeq } for tooltip display
 
+    // Hover state driven externally (e.g., structure viewer hover)
+    // Used to draw a black outline box on the sequence canvas for the corresponding chain + residue.
+    let externalHoveredPositionIndex = null;
+    let externalHoveredChainId = null;
+
     // Virtual scrolling state
     let scrollTop = 0;
     let scrollLeft = 0;
@@ -607,6 +612,50 @@
 
         // Draw scrollbar
         drawScrollbars(ctx, logicalWidth, logicalHeight, scrollableAreaHeight, fullContentHeight);
+
+        // Draw external hover outline boxes (structure-hover -> sequence canvas)
+        // This is intentionally drawn AFTER residues so it sits on top.
+        if (externalHoveredChainId && typeof externalHoveredPositionIndex === 'number' && externalHoveredPositionIndex >= 0) {
+            ctx.save();
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 2;
+
+            // Box around chain label
+            if (layout.chainLabelPositions) {
+                const chainPos = layout.chainLabelPositions.find(p => p.chainId === externalHoveredChainId);
+                if (chainPos) {
+                    const yOffset = chainPos.y - scrollTop;
+                    if (!(yOffset + chainPos.height < 0 || yOffset > scrollableAreaHeight)) {
+                        ctx.strokeRect(chainPos.x + 1, yOffset + 1, Math.max(0, chainPos.width - 2), Math.max(0, chainPos.height - 2));
+                    }
+                }
+            }
+
+            // Box around residue tile (or ligand token tile containing that index)
+            if (layout.residuePositions) {
+                let residuePos = null;
+                for (const pos of layout.residuePositions) {
+                    const rd = pos.residueData;
+                    if (!rd) continue;
+                    if (rd.positionIndex === externalHoveredPositionIndex) {
+                        residuePos = pos;
+                        break;
+                    }
+                    if (rd.isLigandToken && Array.isArray(rd.positionIndices) && rd.positionIndices.includes(externalHoveredPositionIndex)) {
+                        residuePos = pos;
+                        break;
+                    }
+                }
+                if (residuePos) {
+                    const yOffset = residuePos.y - scrollTop;
+                    if (!(yOffset + residuePos.height < 0 || yOffset > scrollableAreaHeight)) {
+                        ctx.strokeRect(residuePos.x + 1, yOffset + 1, Math.max(0, residuePos.width - 2), Math.max(0, residuePos.height - 2));
+                    }
+                }
+            }
+
+            ctx.restore();
+        }
 
         // Draw hover highlight if needed (will be handled in event handlers)
     }
@@ -2265,6 +2314,39 @@
         // Highlight overlay functions
         drawHighlights: drawHighlights,
         updateHighlightOverlaySize: updateHighlightOverlaySize,
+
+        // External hover tooltip control (e.g., from structure viewer)
+        // infoOrNull: { chain, resName, resSeq, positionIndex, positionIndicesCount? } | null
+        setHoveredResidueInfo: function (infoOrNull) {
+            if (infoOrNull && typeof infoOrNull === 'object') {
+                hoveredResidueInfo = {
+                    chain: infoOrNull.chain,
+                    resName: infoOrNull.resName,
+                    resSeq: infoOrNull.resSeq,
+                    positionIndex: infoOrNull.positionIndex,
+                    positionIndicesCount: infoOrNull.positionIndicesCount
+                };
+
+                // Also drive external hover boxing on the sequence canvas
+                externalHoveredChainId = infoOrNull.chain || null;
+                externalHoveredPositionIndex = (typeof infoOrNull.positionIndex === 'number') ? infoOrNull.positionIndex : null;
+            } else {
+                hoveredResidueInfo = null;
+
+                externalHoveredChainId = null;
+                externalHoveredPositionIndex = null;
+            }
+            drawHighlights();
+            scheduleRender();
+        },
+
+        clearHoveredResidueInfo: function () {
+            hoveredResidueInfo = null;
+            externalHoveredChainId = null;
+            externalHoveredPositionIndex = null;
+            drawHighlights();
+            scheduleRender();
+        },
 
         // State management
         setMode: function (mode) {

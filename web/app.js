@@ -250,6 +250,9 @@ function initializeApp() {
     // Setup all event listeners
     setupEventListeners();
 
+    // Enable structure-view hover tooltip (reuses the sequence viewer tooltip renderer)
+    setupStructureViewerHoverTooltip();
+
     // Initialize drag and drop
     initDragAndDrop();
 
@@ -259,6 +262,91 @@ function initializeApp() {
         paeCanvas.style.display = 'none';
     }
     setStatus("Ready. Upload a file or fetch an ID.");
+}
+
+function setupStructureViewerHoverTooltip() {
+    if (!viewerApi?.renderer?.canvas) return;
+
+    const renderer = viewerApi.renderer;
+    const canvas = renderer.canvas;
+
+    // Prevent double-binding if initializeApp is called more than once
+    if (canvas.__py2dmolHoverTooltipAttached) return;
+    canvas.__py2dmolHoverTooltipAttached = true;
+
+    let lastHoveredIndex = null;
+    let rafScheduled = false;
+    let lastMouseEvent = null;
+
+    const clearTooltip = () => {
+        lastHoveredIndex = null;
+        if (window.SEQ?.setHoveredResidueInfo) {
+            window.SEQ.setHoveredResidueInfo(null);
+        }
+        clearHighlight();
+    };
+
+    const processHover = () => {
+        rafScheduled = false;
+        if (!viewerApi?.renderer?.canvas) return;
+        if (!lastMouseEvent) return;
+
+        const r = viewerApi.renderer;
+        if (r.isDragging) return; // Don't fight rotation
+
+        const rect = canvas.getBoundingClientRect();
+        const x = lastMouseEvent.clientX - rect.left;
+        const y = lastMouseEvent.clientY - rect.top;
+
+        let idx = null;
+        if (typeof r.pickPositionAtScreen === 'function') {
+            idx = r.pickPositionAtScreen(x, y);
+        }
+
+        if (idx === lastHoveredIndex) return;
+        lastHoveredIndex = idx;
+
+        if (typeof idx !== 'number' || idx < 0) {
+            if (window.SEQ?.setHoveredResidueInfo) {
+                window.SEQ.setHoveredResidueInfo(null);
+            }
+            clearHighlight();
+            return;
+        }
+
+        // Highlight the position and show the same tooltip box as sequence hover
+        highlightPosition(idx);
+
+        const chain = (Array.isArray(r.chains) && idx < r.chains.length) ? (r.chains[idx] ?? '') : '';
+        const resName = (Array.isArray(r.positionNames) && idx < r.positionNames.length) ? (r.positionNames[idx] ?? '') : '';
+        const resSeq = (Array.isArray(r.residueNumbers) && idx < r.residueNumbers.length) ? (r.residueNumbers[idx] ?? '') : '';
+
+        if (window.SEQ?.setHoveredResidueInfo) {
+            window.SEQ.setHoveredResidueInfo({
+                chain: chain,
+                resName: resName,
+                resSeq: resSeq,
+                positionIndex: idx
+            });
+        }
+    };
+
+    canvas.addEventListener('mousemove', (e) => {
+        // Only respond when a structure is present
+        if (!viewerApi?.renderer?.currentObjectName) {
+            clearTooltip();
+            return;
+        }
+
+        lastMouseEvent = e;
+        if (rafScheduled) return;
+        rafScheduled = true;
+        requestAnimationFrame(processHover);
+    });
+
+    canvas.addEventListener('mouseleave', () => {
+        clearTooltip();
+    });
 }
 
 function refreshEntropyColors() {
