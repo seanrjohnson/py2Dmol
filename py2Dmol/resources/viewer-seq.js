@@ -2340,6 +2340,14 @@
             scheduleRender();
         },
 
+        getExternalHoverState: function () {
+            return {
+                chainId: externalHoveredChainId,
+                positionIndex: externalHoveredPositionIndex,
+                hoveredResidueInfo: hoveredResidueInfo ? { ...hoveredResidueInfo } : null
+            };
+        },
+
         clearHoveredResidueInfo: function () {
             hoveredResidueInfo = null;
             externalHoveredChainId = null;

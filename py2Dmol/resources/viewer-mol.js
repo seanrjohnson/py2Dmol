@@ -1812,6 +1812,26 @@ function initializePy2DmolViewer(containerElement, viewerId) {
             this.cachedTints = null;
         }
 
+        // Keep mapped entropy available whenever the current object has MSA data,
+        // regardless of the active color mode.
+        _refreshMappedEntropy(objectName = this.currentObjectName, frameIndex = this.currentFrame >= 0 ? this.currentFrame : 0) {
+            const resolvedObjectName = objectName || this.currentObjectName;
+            const objectData = resolvedObjectName ? this.objectsData[resolvedObjectName] : null;
+            const hasMSA = objectData?.msa?.msasBySequence &&
+                objectData?.msa?.chainToSequence &&
+                window.MSA &&
+                typeof window.MSA.mapEntropyToStructure === 'function';
+
+            if (hasMSA) {
+                this.entropy = window.MSA.mapEntropyToStructure(objectData, frameIndex >= 0 ? frameIndex : 0);
+            } else {
+                this.entropy = undefined;
+            }
+
+            this._updateEntropyOptionVisibility();
+            return this.entropy;
+        }
+
         // Switch to a different object (handles save/restore of selection state)
         _switchToObject(newObjectName) {
             // Save current object's selection state and viewer state
@@ -1906,23 +1926,8 @@ function initializePy2DmolViewer(containerElement, viewerId) {
                 }
             }
 
-            // Populate entropy data from MSA if available
-            if (this.objectsData[newObjectName]?.msa?.msasBySequence && this.objectsData[newObjectName]?.msa?.chainToSequence && window.MSA) {
-                this.entropy = window.MSA.mapEntropyToStructure(this.objectsData[newObjectName], this.currentFrame >= 0 ? this.currentFrame : 0);
-                this._updateEntropyOptionVisibility();
-            } else if (this.colorMode === 'entropy') {
-                // If entropy mode is active but no MSA, try to map it anyway
-                const objectName = this.currentObjectName;
-                if (objectName && this.objectsData[objectName] && window.MSA) {
-                    this.entropy = window.MSA.mapEntropyToStructure(this.objectsData[objectName], this.currentFrame >= 0 ? this.currentFrame : 0);
-                    this._updateEntropyOptionVisibility();
-                } else {
-                    this.entropy = undefined;
-                }
-            } else {
-                // No MSA data - clear entropy
-                this.entropy = undefined;
-            }
+            // Populate entropy data from MSA if available.
+            this._refreshMappedEntropy(newObjectName, this.currentFrame >= 0 ? this.currentFrame : 0);
 
             // Save the restored selection state (setSelection would do this, but we're bypassing it)
             if (this.currentObjectName && this.objectsData[this.currentObjectName]) {
@@ -3930,15 +3935,8 @@ function initializePy2DmolViewer(containerElement, viewerId) {
                 this.colorMode = 'auto';
             }
 
-            // Map entropy to structure if entropy mode is active
-            if (this.colorMode === 'entropy' && this.currentObjectName && this.objectsData[this.currentObjectName] && window.MSA) {
-                this.entropy = window.MSA.mapEntropyToStructure(this.objectsData[this.currentObjectName], this.currentFrame >= 0 ? this.currentFrame : 0);
-                this._updateEntropyOptionVisibility();
-            } else {
-                // Clear entropy when not in entropy mode
-                this.entropy = undefined;
-                this._updateEntropyOptionVisibility();
-            }
+            // Keep entropy data mapped whenever this object has MSA data.
+            this._refreshMappedEntropy(this.currentObjectName, this.currentFrame >= 0 ? this.currentFrame : 0);
 
             // Mark colors as needing update when coordinates change
             this.colorsNeedUpdate = true;
@@ -4557,11 +4555,8 @@ function initializePy2DmolViewer(containerElement, viewerId) {
             // Update UI controls (but don't render yet)
             this.updateUIControls();
 
-            // Map entropy to structure if entropy mode is active
-            if (this.colorMode === 'entropy' && this.currentObjectName && this.objectsData[this.currentObjectName] && window.MSA) {
-                this.entropy = window.MSA.mapEntropyToStructure(this.objectsData[this.currentObjectName], this.currentFrame >= 0 ? this.currentFrame : 0);
-                this._updateEntropyOptionVisibility();
-            }
+            // Keep entropy data mapped whenever this object has MSA data.
+            this._refreshMappedEntropy(this.currentObjectName, this.currentFrame >= 0 ? this.currentFrame : 0);
         }
 
 
@@ -6749,14 +6744,7 @@ function initializePy2DmolViewer(containerElement, viewerId) {
             renderer.colorsNeedUpdate = true;
             renderer.plddtColorsNeedUpdate = true;
 
-            // Map entropy to structure if entropy mode is selected
-            if (selectedMode === 'entropy' && renderer.currentObjectName && renderer.objectsData[renderer.currentObjectName] && window.MSA) {
-                renderer.entropy = window.MSA.mapEntropyToStructure(renderer.objectsData[renderer.currentObjectName], renderer.currentFrame >= 0 ? renderer.currentFrame : 0);
-                renderer._updateEntropyOptionVisibility();
-            } else {
-                // Clear entropy when switching away from entropy mode
-                renderer.entropy = undefined;
-            }
+            renderer._refreshMappedEntropy(renderer.currentObjectName, renderer.currentFrame >= 0 ? renderer.currentFrame : 0);
 
             renderer.render();
             document.dispatchEvent(new CustomEvent('py2dmol-color-change'));
