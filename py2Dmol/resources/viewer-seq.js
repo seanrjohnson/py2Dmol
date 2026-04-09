@@ -2116,6 +2116,52 @@
         }
     }
 
+    function getHoveredResidueTooltipLines(renderer) {
+        if (!hoveredResidueInfo) {
+            return [];
+        }
+
+        const lines = [];
+        lines.push(`Chain: ${hoveredResidueInfo.chain}`);
+        lines.push(`Residue: ${hoveredResidueInfo.resName}`);
+        lines.push(`Pos: ${hoveredResidueInfo.resSeq}`);
+
+        const posIndex = hoveredResidueInfo.positionIndex;
+        if (typeof posIndex === 'number' && Number.isFinite(posIndex) && posIndex >= 0) {
+            lines.push(`Index: ${posIndex}`);
+
+            // Prefer current renderer arrays (they reflect current frame/object)
+            const resName = renderer.position_names?.[posIndex];
+            const resNum = renderer.residue_numbers?.[posIndex];
+            const posType = renderer.position_types?.[posIndex];
+            if (resName && resName !== hoveredResidueInfo.resName) {
+                lines.push(`Name: ${resName}`);
+            }
+            if (resNum !== undefined && resNum !== null && resNum !== '' && String(resNum) !== String(hoveredResidueInfo.resSeq)) {
+                lines.push(`Res#: ${resNum}`);
+            }
+            if (posType) {
+                lines.push(`Type: ${posType}`);
+            }
+
+            const plddt = renderer.plddts?.[posIndex];
+            if (Number.isFinite(plddt)) {
+                lines.push(`pLDDT: ${Number(plddt).toFixed(1)}`);
+            }
+
+            const entropy = renderer.entropy?.[posIndex];
+            if (Number.isFinite(entropy)) {
+                lines.push(`Entropy: ${Number(entropy).toFixed(3)}`);
+            }
+        }
+
+        if (hoveredResidueInfo.positionIndicesCount && hoveredResidueInfo.positionIndicesCount > 1) {
+            lines.push(`Count: ${hoveredResidueInfo.positionIndicesCount}`);
+        }
+
+        return lines;
+    }
+
     // Draw highlights on overlay canvas without re-rendering main scene
     function drawHighlights() {
         const renderer = callbacks.getRenderer ? callbacks.getRenderer() : null;
@@ -2214,45 +2260,7 @@
             highlightOverlayCtx.textAlign = 'right';
             highlightOverlayCtx.textBaseline = 'bottom';
 
-            // Build tooltip text
-            const lines = [];
-
-            lines.push(`Chain: ${hoveredResidueInfo.chain}`);
-            lines.push(`Residue: ${hoveredResidueInfo.resName}`);
-            lines.push(`Index: ${hoveredResidueInfo.resSeq}`);
-
-            const posIndex = hoveredResidueInfo.positionIndex;
-            if (typeof posIndex === 'number' && Number.isFinite(posIndex) && posIndex >= 0) {
-                lines.push(`Pos: ${posIndex}`);
-
-                // Prefer current renderer arrays (they reflect current frame/object)
-                const resName = renderer.position_names?.[posIndex];
-                const resNum = renderer.residue_numbers?.[posIndex];
-                const posType = renderer.position_types?.[posIndex];
-                if (resName && resName !== hoveredResidueInfo.resName) {
-                    lines.push(`Name: ${resName}`);
-                }
-                if (resNum !== undefined && resNum !== null && resNum !== '' && String(resNum) !== String(hoveredResidueInfo.resSeq)) {
-                    lines.push(`Res#: ${resNum}`);
-                }
-                if (posType) {
-                    lines.push(`Type: ${posType}`);
-                }
-
-                const plddt = renderer.plddts?.[posIndex];
-                if (Number.isFinite(plddt)) {
-                    lines.push(`pLDDT: ${Number(plddt).toFixed(1)}`);
-                }
-
-                const entropy = renderer.entropy?.[posIndex];
-                if (Number.isFinite(entropy)) {
-                    lines.push(`Entropy: ${Number(entropy).toFixed(3)}`);
-                }
-            }
-
-            if (hoveredResidueInfo.positionIndicesCount && hoveredResidueInfo.positionIndicesCount > 1) {
-                lines.push(`Count: ${hoveredResidueInfo.positionIndicesCount}`);
-            }
+            const lines = getHoveredResidueTooltipLines(renderer);
 
             // Measure text to size background
             const textMetrics = lines.map(line => highlightOverlayCtx.measureText(line));
@@ -2346,6 +2354,14 @@
                 positionIndex: externalHoveredPositionIndex,
                 hoveredResidueInfo: hoveredResidueInfo ? { ...hoveredResidueInfo } : null
             };
+        },
+
+        getHoveredTooltipLines: function () {
+            const renderer = callbacks.getRenderer ? callbacks.getRenderer() : null;
+            if (!renderer) {
+                return [];
+            }
+            return getHoveredResidueTooltipLines(renderer);
         },
 
         clearHoveredResidueInfo: function () {

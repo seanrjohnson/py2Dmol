@@ -145,6 +145,7 @@ def test_structure_hover_updates_sequence_hover_state(page, served_dist_url: str
                     x: renderer.screenX[idx],
                     y: renderer.screenY[idx],
                     chain: renderer.chains[idx],
+                    resSeq: renderer.residueNumbers[idx],
                 };
             }
             return null;
@@ -179,6 +180,12 @@ def test_structure_hover_updates_sequence_hover_state(page, served_dist_url: str
         timeout=30000,
     )
 
+    tooltip_lines = page.evaluate(
+        """
+        () => window.SEQ.getHoveredTooltipLines()
+        """
+    )
+
     hovered_state = page.evaluate(
         """
         () => window.SEQ.getExternalHoverState()
@@ -188,6 +195,9 @@ def test_structure_hover_updates_sequence_hover_state(page, served_dist_url: str
     assert hovered_state["positionIndex"] == hover_target["index"]
     assert hovered_state["chainId"] == hover_target["chain"]
     assert hovered_state["hoveredResidueInfo"]["positionIndex"] == hover_target["index"]
+    assert f"Pos: {hover_target['resSeq']}" in tooltip_lines
+    assert f"Index: {hover_target['index']}" in tooltip_lines
+    assert f"Index: {hover_target['resSeq']}" not in tooltip_lines
 
     page.evaluate(
         """
